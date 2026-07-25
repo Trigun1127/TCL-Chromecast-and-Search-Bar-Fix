@@ -563,7 +563,274 @@ The exact factory APK was pulled and decompiled with JADX. This established that
 - `MediaShellCastReceiverService` runs as a manager and binds to the receiver with `BIND_AUTO_CREATE`.
 - the service/component names used below came from this exact APK, not from a guess.
 
-TCL vendor properties that could have forced Cast removal were also checked and were fals…1860 tokens truncated…-probe/index.html).
+TCL vendor properties that could have forced Cast removal were also checked and were false:
+
+```text
+ro.feature.pms_app_removeable=false
+ro.feature.hotel_uninstall_castapp=false
+```
+
+### What the guarded helper does
+
+The audited source is in [`tools/CastPackageRepairStage1.java`](tools/CastPackageRepairStage1.java).
+
+It performs one narrowly constrained Package Manager binder operation:
+
+```text
+Package:      com.google.android.apps.mediashell
+User:         0
+Version:      446070212
+Flags:        5
+              DELETE_KEEP_DATA (1)
+            | DELETE_SYSTEM_APP (4)
+```
+
+It:
+
+- refuses to run without a long exact confirmation string;
+- contains a runtime version, user, package, and flag guard;
+- calls `IPackageManager.deletePackageVersioned`;
+- waits for the package deletion observer;
+- requires Android's success code `1`;
+- retains app data;
+- marks only the factory system app's per-user state uninstalled;
+- cannot erase the read-only APK in `/product`;
+- deliberately requires a separate standard `install-existing` command to restore the factory app.
+
+It does **not** root the TV, modify the APK, flash firmware, or make the system partition writable.
+
+### Build and audit record
+
+The tested helper was compiled with:
+
+- Microsoft/OpenJDK 17.0.20;
+- `javac`;
+- small compile-only stubs for Android hidden interfaces;
+- Android D8/R8 `8.6.27`;
+- `app_process` on the TV for execution.
+
+Tested helper JAR SHA-256:
+
+```text
+C5018F42F75927CE14CECDD7279DC58DC663588961D7A914D7A94B42FD2814EA
+```
+
+Tested helper source SHA-256:
+
+```text
+7ED901B848DE70E9E56FDAE4FF9D1B22804CB4946F4DEC3DEF9BD0F841E5BB33
+```
+
+The compiled JAR is intentionally not published here. A blind one-click binary would make it too easy to run a firmware-specific system-app operation on the wrong television. The source and compile-only interface stubs are published for auditability. Rebuild it yourself and compare the source, target constants, decompiled DEX, and hash before considering execution.
+
+The build shape was:
+
+```text
+Java source
+  → javac against compile-only hidden-API stubs
+  → ordinary .class/.jar
+  → D8
+  → classes.dex
+  → DEX JAR
+  → decompile the final JAR again with JADX
+  → compare decompiled behavior with the source
+```
+
+An impossible-version dry probe was run first to prove that the binder path and version guard failed safely. Only then was the exact-version helper executed.
+
+### Preflight — every check must match
+
+```powershell
+.\adb.exe -s $TV shell dumpsys package com.google.android.apps.mediashell |
+  Select-String "codePath=|versionCode=|versionName=|User 0:"
+```
+
+Required:
+
+```text
+codePath=/product/priv-app/AndroidMediaShell
+versionCode=446070212
+versionName=3.72.446070
+User 0: installed=true hidden=true ...
+```
+
+Hash the pulled APK and require:
+
+```text
+6AEE5E47A48518BADFB52DF68AA343E3571AEFBBD8A4CF5D176676D64AE5D303
+```
+
+If even one item differs, do not continue.
+
+### Stage 1 — normalize the corrupt per-user state
+
+After independently rebuilding and auditing the helper:
+
+```powershell
+.\adb.exe -s $TV push `
+  .\cast-package-repair-stage1.jar `
+  /data/local/tmp/cast-package-repair-stage1.jar
+```
+
+Execute with the exact confirmation:
+
+```powershell
+.\adb.exe -s $TV shell `
+  "CLASSPATH=/data/local/tmp/cast-package-repair-stage1.jar app_process /system/bin CastPackageRepairStage1 EXECUTE_ONLY_com.google.android.apps.mediashell_USER_0_VERSION_446070212_FLAGS_5"
+```
+
+The successful run reported:
+
+```text
+repair.build=tcl-cast-state-repair-stage1-v1
+repair.package=com.google.android.apps.mediashell
+repair.user=0
+repair.versionGuard=446070212
+repair.flags=5
+repair.begin=true
+observer.package=com.google.android.apps.mediashell
+observer.code=1
+repair.success=true
+repair.next=verify_then_install_existing
+```
+
+Do not proceed based on partial output. Require `observer.code=1` and `repair.success=true`.
+
+Immediately inspect state:
+
+```powershell
+.\adb.exe -s $TV shell dumpsys package com.google.android.apps.mediashell |
+  Select-String "User 0:"
+```
+
+Observed intermediate state:
+
+```text
+installed=false hidden=false stopped=true notLaunched=true
+```
+
+That is expected only between stage 1 and `install-existing`.
+
+### Stage 2 — reinstall the existing immutable factory app
+
+```powershell
+.\adb.exe -s $TV shell cmd package install-existing `
+  --user 0 --full --wait `
+  com.google.android.apps.mediashell
+```
+
+Observed output:
+
+```text
+Installing package...
+Received intent
+```
+
+Verify:
+
+```powershell
+.\adb.exe -s $TV shell dumpsys package com.google.android.apps.mediashell |
+  Select-String "codePath=|versionCode=|User 0:"
+```
+
+Observed:
+
+```text
+installed=true hidden=false stopped=true notLaunched=true
+```
+
+The factory APK path and SHA-256 remained unchanged.
+
+### Stage 3 — clear stopped state and start the factory service chain
+
+Launch the factory Cast settings activity:
+
+```powershell
+.\adb.exe -s $TV shell am start --user 0 `
+  -a com.google.android.settings.CAST_RECEIVER_SETTINGS `
+  -n com.google.android.apps.mediashell/.settings.CastSettingsActivity
+```
+
+Press **Back** on the remote if the TV displays a blank gray activity.
+
+Then start the built-in manager and receiver:
+
+```powershell
+.\adb.exe -s $TV shell am start-service --user 0 `
+  -n com.google.android.apps.mediashell/.MediaShellCastReceiverService
+
+.\adb.exe -s $TV shell am start-service --user 0 `
+  -a com.google.cast.action.BIND `
+  -n com.google.android.apps.mediashell/.CastReceiverService
+```
+
+### Stage 4 — remove the temporary helper
+
+Only after successful verification:
+
+```powershell
+.\adb.exe -s $TV shell rm `
+  /data/local/tmp/cast-package-repair-stage1.jar
+```
+
+Verify it is gone:
+
+```powershell
+.\adb.exe -s $TV shell ls -l `
+  /data/local/tmp/cast-package-repair-stage1.jar
+```
+
+Expected:
+
+```text
+No such file or directory
+```
+
+The successful repair removed this temporary file. No helper app, background daemon, or backdoor remained on the TV.
+
+## Why the keep-alive service mattered
+
+“Keep alive” did not mean a custom program was installed.
+
+The factory APK contains two relevant Android services:
+
+```mermaid
+flowchart TD
+    A["Chrome or Cast-enabled sender"] -->|"mDNS discovery: _googlecast._tcp"| B["Factory Google Cast package"]
+    C["MediaShellCastReceiverService<br/>factory manager"] -->|"bindService + BIND_AUTO_CREATE"| D["CastReceiverService<br/>foreground/sticky receiver"]
+    D --> E["Cast/DIAL and Cast V2 listeners<br/>8008 / 8009 / 8443"]
+    B --> C
+    B --> D
+```
+
+The first direct service start made the receiver available and allowed the Cast Web Sender SDK to connect. However, when the page/session disappeared, the receiver could idle and port `8009` could vanish.
+
+Decompiling the exact APK revealed the missing piece:
+
+```text
+com.google.android.apps.mediashell/.MediaShellCastReceiverService
+```
+
+That factory manager binds to:
+
+```text
+com.google.android.apps.mediashell/.CastReceiverService
+```
+
+with `BIND_AUTO_CREATE`. Once the manager was started:
+
+- the manager process remained present;
+- the receiver showed a live binding;
+- the receiver ran in the foreground;
+- Cast ports stayed open;
+- `_googlecast._tcp` remained advertised after the SDK page closed;
+- ordinary Chrome discovery worked.
+
+So the durable in-boot correction was not “keep the SDK web page open.” It was “restore the app's package state and start the factory manager/receiver relationship TCL and Google already shipped.”
+
+## Test with the official Cast Web Sender SDK
+
+The diagnostic page is in [`cast-sdk-probe/index.html`](cast-sdk-probe/index.html).
 
 It:
 
@@ -976,4 +1243,3 @@ Because it performs a system-package per-user operation through a hidden Android
 ## Disclaimer
 
 This is a case report and reproducibility guide, not an official TCL or Google repair bulletin. Start with read-only inspection and the low-risk fixes. The advanced helper is only documented for the exact tested package, version, user, APK, and firmware. You accept responsibility for changes made to your own device.
-
