@@ -2,15 +2,15 @@
 
 This repository documents a successful, live repair of two failures on a 2024 TCL QM8-series Google TV:
 
-1. **Google Play Store search did nothing** â€” selecting **Search for apps and games** opened no keyboard and produced no visible response.
-2. **Google Cast / Chromecast was missing and undiscoverable** â€” Chrome could not find the TV for tab or desktop mirroring, the Cast system app did not appear in Settings, and its Play Store page produced a generic installation error.
+1. **Google Play Store search did nothing** — selecting **Search for apps and games** opened no keyboard and produced no visible response.
+2. **Google Cast / Chromecast was missing and undiscoverable** — Chrome could not find the TV for tab or desktop mirroring, the Cast system app did not appear in Settings, and its Play Store page produced a generic installation error.
 
 The final result was:
 
 - Play Store search and its on-screen keyboard worked again.
 - The factory Google Cast receiver became visible on the LAN.
 - Chrome discovered the TV without keeping a diagnostic page open.
-- **Chrome â†’ Sources â†’ Cast screen** displayed the Windows desktop on the TV.
+- **Chrome → Sources → Cast screen** displayed the Windows desktop on the TV.
 - No factory reset, rooting, bootloader unlock, OEM unlock, picture-mode reset, firewall change, or permanent third-party TV service was used.
 
 > [!IMPORTANT]
@@ -85,7 +85,7 @@ Diagnosis:
 Observed behavior:
 
 - The TV was absent from Chrome's Cast receiver list.
-- â€œGoogle Castâ€ or â€œChromecast built-inâ€ was absent even under **Show system apps**.
+- “Google Cast” or “Chromecast built-in” was absent even under **Show system apps**.
 - The Play Store offered **Install**, but the attempt ended in a generic error.
 - YouTube could sometimes prompt to connect and cast successfully.
 - Clearing the Cast app's cache/data, restarting, and a 60-second power removal did not make normal Cast discovery durable.
@@ -177,11 +177,11 @@ Open:
 
 ```text
 Settings
-  â†’ Apps
-  â†’ See all apps
-  â†’ Show system apps
-  â†’ Google app for Android TV
-  â†’ Uninstall updates
+  → Apps
+  → See all apps
+  → Show system apps
+  → Google app for Android TV
+  → Uninstall updates
 ```
 
 Confirm the rollback, return to the Play Store, and select **Search for apps and games** again.
@@ -239,9 +239,9 @@ Menu names vary slightly by launcher revision. On this TV the path was equivalen
 
 ```text
 Settings
-  â†’ System
-  â†’ About
-  â†’ Android TV OS build
+  → System
+  → About
+  → Android TV OS build
 ```
 
 Select **Android TV OS build** seven times until the TV confirms that Developer options are enabled.
@@ -250,8 +250,8 @@ Then open:
 
 ```text
 Settings
-  â†’ System
-  â†’ Developer options
+  → System
+  → Developer options
 ```
 
 Turn on:
@@ -277,8 +277,8 @@ Leave OEM unlocking off.
 
 Android shows two endpoints:
 
-1. **Pairing endpoint** â€” visible inside **Pair device with pairing code** and paired with the temporary six-digit code.
-2. **Connection endpoint** â€” visible on the main Wireless debugging screen and used by `adb connect`.
+1. **Pairing endpoint** — visible inside **Pair device with pairing code** and paired with the temporary six-digit code.
+2. **Connection endpoint** — visible on the main Wireless debugging screen and used by `adb connect`.
 
 They normally have different ports. Reopening the pairing dialog generates a new code and often a new pairing port.
 
@@ -296,7 +296,7 @@ On the TV select:
 
 ```text
 Wireless debugging
-  â†’ Pair device with pairing code
+  → Pair device with pairing code
 ```
 
 In PowerShell:
@@ -379,7 +379,7 @@ tcl9618-user 14 UTT2.250416.001 AU14 release-keys
 
 The TCL Settings UI separately reported firmware `V8-T653T02-LF1V321`.
 
-### Compare normal and â€œinclude uninstalledâ€ package lists
+### Compare normal and “include uninstalled” package lists
 
 ```powershell
 .\adb.exe -s $TV shell pm list packages com.google.android.apps.mediashell
@@ -393,7 +393,7 @@ In the broken state:
 - `pm list packages -u` still found it;
 - `dumpsys package` exposed the actual per-user state.
 
-That is why **Google Cast was not there** under Settings â†’ Apps â†’ Show system apps. It was not merely overlooked; Package Manager had hidden it for user 0.
+That is why **Google Cast was not there** under Settings → Apps → Show system apps. It was not merely overlooked; Package Manager had hidden it for user 0.
 
 ### Inspect package version and user state
 
@@ -516,7 +516,7 @@ The screen may be blank or gray. Press **Back** once. This does not enter or res
   -n com.google.android.apps.mediashell/.CastReceiverService
 ```
 
-Wait 10â€“20 seconds, then repeat the process/port/mDNS checks.
+Wait 10–20 seconds, then repeat the process/port/mDNS checks.
 
 Expected results include:
 
@@ -561,7 +561,13 @@ The exact factory APK was pulled and decompiled with JADX. This established that
 - `CastShellBootstrapService` starts the receiver after the system clock becomes valid.
 - `CastReceiverService` starts the receiver and is sticky.
 - `MediaShellCastReceiverService` runs as a manager and binds to the receiver with `BIND_AUTO_CREATE`.
-- the service/component names used below came from …1930 tokens truncated…gstatic.com`;
+- the service/component names used below came from this exact APK, not from a guess.
+
+TCL vendor properties that could have forced Cast removal were also checked and were fals…1860 tokens truncated…-probe/index.html).
+
+It:
+
+- loads Google's official Web Sender SDK from `gstatic.com`;
 - uses `cast.framework.CastContext`;
 - requests the built-in Default Media Receiver;
 - reports whether a compatible receiver is visible;
@@ -630,7 +636,7 @@ Once `_googlecast._tcp` remains visible without the SDK page:
 
 1. Close the diagnostic SDK page.
 2. Open Chrome.
-3. Open **â‹® â†’ Cast, save, and share â†’ Castâ€¦**
+3. Open **⋮ → Cast, save, and share → Cast…**
 4. Select **Sources**.
 5. Select **Cast screen**.
 6. Select the TCL TV.
@@ -677,7 +683,7 @@ This is the chronological record, including the false starts:
 24. Noticed the direct receiver later went idle when no session held it.
 25. Returned to the decompiled APK and found the factory manager service that binds to the receiver with `BIND_AUTO_CREATE`.
 26. Started that manager; the binding and ports stayed alive with the SDK page closed.
-27. Opened Chrome's native Cast UI, selected **Sources â†’ Cast screen**, and successfully displayed the computer desktop on the TV.
+27. Opened Chrome's native Cast UI, selected **Sources → Cast screen**, and successfully displayed the computer desktop on the TV.
 28. Removed temporary helper files and stopped the local diagnostic server.
 
 ## Programs and tools used
@@ -700,7 +706,7 @@ This is the chronological record, including the false starts:
 | Android `app_process` | Executed the one-purpose DEX through Android's own runtime |
 | Bonjour `dns-sd.exe` | Watched for the normal `_googlecast._tcp` mDNS service |
 | Python local HTTP server | Served the static SDK probe only on `127.0.0.1` |
-| Google Cast Web Sender SDK | Distinguished â€œno compatible receiverâ€ from â€œreceiver visibleâ€ and launched a real default-receiver session |
+| Google Cast Web Sender SDK | Distinguished “no compatible receiver” from “receiver visible” and launched a real default-receiver session |
 | Google Chrome | Final native **Cast screen** validation |
 | Codex desktop | Coordinated commands, source inspection, browser diagnostics, and documentation; it was not installed on the TV |
 
@@ -820,7 +826,7 @@ After everything works:
    - Wireless debugging
    - USB debugging
 
-5. Under **Wireless debugging â†’ Paired devices**, select the PC and choose **Forget** if future debugging is not needed.
+5. Under **Wireless debugging → Paired devices**, select the PC and choose **Forget** if future debugging is not needed.
 6. Keep OEM unlocking off.
 
 Normal Chromecast operation does not require ADB, USB debugging, Wireless debugging, the SDK page, Python, or Codex to remain running.
@@ -841,7 +847,7 @@ Normal Chromecast operation does not require ADB, USB debugging, Wireless debugg
 | `_androidtvremote2._tcp` exists but `_googlecast._tcp` does not | LAN mDNS partly works; Cast receiver is not advertising | Inspect/start Cast receiver chain |
 | SDK says `NOT_CONNECTED` | At least one compatible receiver is visible | Click Cast launcher and select TV |
 | SDK connects but Chrome menu later loses TV | Receiver is alive only during the session | Verify manager binding and receiver ports after closing page |
-| Chrome sees TV and **Cast tab** works | Cast path is healthy | Choose **Sources â†’ Cast screen** for the desktop |
+| Chrome sees TV and **Cast tab** works | Cast path is healthy | Choose **Sources → Cast screen** for the desktop |
 | Search still ignores selection after cache clear | Likely incompatible Katniss update | Uninstall updates for Google app for Android TV |
 
 ## Technical evidence
@@ -899,7 +905,7 @@ Device-unique receiver IDs, the private LAN address, and all six-digit pairing c
 
 ## FAQ
 
-### Why wasn't Google Cast listed under â€œShow system appsâ€?
+### Why wasn't Google Cast listed under “Show system apps”?
 
 Because Android had recorded `hidden=true` for `com.google.android.apps.mediashell` for user 0. The factory APK was present, but ordinary Settings and package queries were not allowed to present it normally.
 
@@ -913,13 +919,13 @@ That was the behavior of this TCL firmware during the successful pairing session
 
 ### Was a USB cable used?
 
-No. Pairing and debugging used Wi-Fi. The â€œUSB debuggingâ€ toggle was enabled because this TCL build required it, despite the absence of a physical USB connection.
+No. Pairing and debugging used Wi-Fi. The “USB debugging” toggle was enabled because this TCL build required it, despite the absence of a physical USB connection.
 
 ### Did the SDK create a special bridge to the TV?
 
 No. It used normal Google Cast discovery and Cast protocols. ADB was only used to inspect and activate the TV's existing factory receiver. The Web Sender SDK proved whether Chrome could see and launch that receiver.
 
-### What exactly was the â€œkeep-aliveâ€?
+### What exactly was the “keep-alive”?
 
 The TV's own `MediaShellCastReceiverService`. It binds to the TV's own `CastReceiverService` with Android's `BIND_AUTO_CREATE`. No new keep-alive program was installed.
 
