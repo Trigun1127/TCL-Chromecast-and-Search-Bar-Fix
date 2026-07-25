@@ -282,12 +282,14 @@ Android shows two endpoints:
 
 They normally have different ports. Reopening the pairing dialog generates a new code and often a new pairing port.
 
-Use placeholders in notes or screenshots; do not publish real pairing codes:
+Use placeholders in notes or screenshots; do not publish real pairing codes.
+
+The address `192.0.2.50` below is an **example-only documentation address**. It is not the address of the repaired TV and it will not work for your TV. Read the IP address and both current ports directly from your own TV. Home-network addresses commonly begin with `192.168`, `10`, or `172.16` through `172.31`, but yours may be different.
 
 ```text
-Pairing endpoint example:    192.168.1.50:37123
+Pairing endpoint example:    192.0.2.50:37123
 Temporary pairing code:     123456
-Connection endpoint example: 192.168.1.50:41817
+Connection endpoint example: 192.0.2.50:41817
 ```
 
 ### Pair and connect
@@ -302,33 +304,39 @@ Wireless debugging
 In PowerShell:
 
 ```powershell
-.\adb.exe pair 192.168.1.50:37123
+# EXAMPLE ONLY: replace the IP and port with the pairing endpoint
+# currently shown by your own TV.
+$PairEndpoint = "192.0.2.50:37123"
+.\adb.exe pair $PairEndpoint
 ```
 
 Enter the six-digit code only when ADB prompts for it:
 
 ```text
 Enter pairing code:
-Successfully paired to 192.168.1.50:37123
+Successfully paired to 192.0.2.50:37123
 ```
 
 Return to the main Wireless debugging page, read its separate IP address and connection port, then run:
 
 ```powershell
-.\adb.exe connect 192.168.1.50:41817
+# EXAMPLE ONLY: replace the IP and port with the connection endpoint
+# currently shown on your own TV's main Wireless debugging screen.
+$TV = "192.0.2.50:41817"
+.\adb.exe connect $TV
 .\adb.exe devices -l
 ```
 
 Expected:
 
 ```text
-192.168.1.50:41817    device product:... model:Smart_TV_Pro device:G08
+192.0.2.50:41817    device product:... model:Smart_TV_Pro device:G08
 ```
 
-For the rest of the PowerShell examples:
+For the rest of the PowerShell examples, keep `$TV` set to **your own TV's actual connection endpoint**, not the example address:
 
 ```powershell
-$TV = "192.168.1.50:41817"
+$TV = "192.0.2.50:41817" # EXAMPLE ONLY — replace this value
 .\adb.exe -s $TV shell getprop ro.product.model
 ```
 
@@ -621,7 +629,24 @@ Tested helper source SHA-256:
 7ED901B848DE70E9E56FDAE4FF9D1B22804CB4946F4DEC3DEF9BD0F841E5BB33
 ```
 
-The compiled JAR is intentionally not published here. A blind one-click binary would make it too easy to run a firmware-specific system-app operation on the wrong television. The source and compile-only interface stubs are published for auditability. Rebuild it yourself and compare the source, target constants, decompiled DEX, and hash before considering execution.
+The exact 3,149-byte JAR that ran successfully on the documented television is preserved at [`tools/cast-package-repair-stage1.jar`](tools/cast-package-repair-stage1.jar). This is the surviving tested artifact, not a later rebuild. Its SHA-256 matches the value above and is also recorded in [`tools/SHA256SUMS.txt`](tools/SHA256SUMS.txt).
+
+Verify the downloaded file before even considering execution:
+
+```powershell
+(Get-FileHash `
+  .\tools\cast-package-repair-stage1.jar `
+  -Algorithm SHA256).Hash
+```
+
+Require this exact result:
+
+```text
+C5018F42F75927CE14CECDD7279DC58DC663588961D7A914D7A94B42FD2814EA
+```
+
+> [!CAUTION]
+> Publishing the exact binary does not make it universal or safe to run blindly. It performs a firmware-specific Package Manager operation. Do not run it unless **every** preflight value below matches, the broken state is specifically `installed=true hidden=true`, and you have audited the published Java source. The helper's hard-coded package/version/user/flag checks reduce accidental misuse but do not replace those preflight checks.
 
 The build shape was:
 
@@ -664,11 +689,11 @@ If even one item differs, do not continue.
 
 ### Stage 1 — normalize the corrupt per-user state
 
-After independently rebuilding and auditing the helper:
+After completing every preflight check and auditing the helper source, use the exact tested JAR from this repository:
 
 ```powershell
 .\adb.exe -s $TV push `
-  .\cast-package-repair-stage1.jar `
+  .\tools\cast-package-repair-stage1.jar `
   /data/local/tmp/cast-package-repair-stage1.jar
 ```
 
@@ -1224,9 +1249,11 @@ An ordinary restart normally preserves them; a factory reset does not. No factor
 
 No. Disable USB debugging and Wireless debugging after verification unless you actively need ADB.
 
-### Why not publish the compiled helper JAR?
+### Is the exact compiled helper JAR included?
 
-Because it performs a system-package per-user operation through a hidden Android interface and is intentionally tied to one package/version/user/flag set. Publishing only auditable source makes casual misuse on a different firmware less likely.
+Yes. [`tools/cast-package-repair-stage1.jar`](tools/cast-package-repair-stage1.jar) is the exact 3,149-byte artifact used for the successful repair, with SHA-256 `C5018F42F75927CE14CECDD7279DC58DC663588961D7A914D7A94B42FD2814EA`. Its exact Java source and compile-only stubs are included beside it for inspection.
+
+It is not a general TCL repair utility. It performs a system-package per-user operation through a hidden Android interface and is intentionally tied to one package, version, user, and flag set. Verify its hash and every documented preflight condition before use.
 
 ## Official references
 
