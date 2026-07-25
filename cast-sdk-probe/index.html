@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google Cast Discovery Probe</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, sans-serif;
+    }
+
+    body {
+      margin: 3rem auto;
+      max-width: 48rem;
+      padding: 0 1.25rem;
+      background: #111827;
+      color: #f9fafb;
+    }
+
+    .card {
+      padding: 1.5rem;
+      border: 1px solid #374151;
+      border-radius: 1rem;
+      background: #1f2937;
+    }
+
+    #state {
+      margin: 1rem 0;
+      font: 700 1.5rem/1.3 ui-monospace, monospace;
+      color: #93c5fd;
+    }
+
+    #details {
+      white-space: pre-wrap;
+      font: 0.95rem/1.5 ui-monospace, monospace;
+      color: #d1d5db;
+    }
+
+    google-cast-launcher {
+      display: inline-block;
+      width: 2.5rem;
+      height: 2.5rem;
+      margin-top: 1rem;
+      --connected-color: #34d399;
+      --disconnected-color: #f9fafb;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Google Cast Discovery Probe</h1>
+    <p>This page only asks Chrome's official Cast framework whether a receiver is visible.</p>
+    <div id="state">LOADING</div>
+    <div id="details">Waiting for the Google Cast Web Sender SDK…</div>
+    <google-cast-launcher aria-label="Open Cast device list"></google-cast-launcher>
+  </main>
+
+  <script>
+    const stateElement = document.querySelector("#state");
+    const detailsElement = document.querySelector("#details");
+
+    function report(state, detail) {
+      stateElement.textContent = state;
+      detailsElement.textContent = detail;
+      document.title = `Cast Probe — ${state}`;
+      console.log("[cast-probe]", state, detail);
+    }
+
+    window.__onGCastApiAvailable = function (isAvailable) {
+      if (!isAvailable) {
+        report("SDK_UNAVAILABLE", "Chrome reported that the Google Cast API is unavailable.");
+        return;
+      }
+
+      try {
+        const context = cast.framework.CastContext.getInstance();
+        context.setOptions({
+          receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+          autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+        });
+
+        const update = () => {
+          const state = context.getCastState();
+          report(
+            state,
+            state === cast.framework.CastState.NO_DEVICES_AVAILABLE
+              ? "Chrome currently sees no compatible Google Cast receivers."
+              : state === cast.framework.CastState.NOT_CONNECTED
+                ? "At least one compatible Google Cast receiver is visible."
+                : `Chrome Cast framework state: ${state}`
+          );
+        };
+
+        context.addEventListener(
+          cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+          update
+        );
+        update();
+      } catch (error) {
+        report("INITIALIZATION_ERROR", String(error));
+      }
+    };
+  </script>
+  <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+</body>
+</html>
